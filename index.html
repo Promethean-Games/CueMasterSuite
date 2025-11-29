@@ -13,9 +13,9 @@
       --safe-top: env(safe-area-inset-top, 0px);
     }
     body { background: var(--pg-bg); color: var(--pg-text); }
-    .pg-panel { background: var(--pg-panel); border-radius:0.75rem; }
+    .pg-panel { background: var(--pg-panel); border-radius:0.75rem; overflow:hidden; position:relative; }
     .tap-big { font-size: 1.1rem; padding: 0.9rem 1.1rem; border-radius: 0.75rem; }
-    .nav-fixed { position: fixed; bottom: 0; left: 0; right: 0; border-top: 1px solid #262626; background:#0c0c0c; padding-bottom: max(0.5rem, var(--safe-bottom)); }
+    .nav-fixed { position: fixed; bottom: 0; left: 0; right: 0; border-top: 1px solid #262626; background:#0c0c0c; padding-bottom: max(0.5rem, var(--safe-bottom)); overflow:hidden; }
     .btn { background:#1f1f1f; color:#e5e5e5; padding: .6rem .9rem; border-radius:.65rem; }
     .btn:active { transform: translateY(1px); }
     .seg { display:inline-flex; background:#1b1b1b; border-radius:9999px; padding:4px; gap:4px; }
@@ -26,7 +26,7 @@
     .round-record { width: 96px; height: 96px; border-radius: 9999px; background: #d11111; display:flex; align-items:center; justify-content:center; font-weight:700; }
     .round-record:active { transform: translateY(1px) scale(0.98); }
     .vslider-wrap{ display:flex; align-items:center; justify-content:center; min-height: 220px; }
-    .vslider { appearance:none; width: 360px; height: 14px; transform: rotate(-90deg) scaleX(-1); background:#1b1b1b; border-radius:9999px; outline:none; }
+    .vslider { appearance:none; width: 320px; height: 14px; transform: rotate(-90deg) scaleX(-1); background:#1b1b1b; border-radius:9999px; outline:none; }
     .vslider::-webkit-slider-thumb { appearance:none; width:24px; height:24px; background:#d11111; border-radius:50%; border:2px solid #3a3a3a; }
     .vslider::-moz-range-thumb { width:24px; height:24px; background:#d11111; border-radius:50%; border:2px solid #3a3a3a; }
     .tile { border-radius: 0.75rem; overflow: hidden; border:1px solid #2a2a2a; transition: box-shadow .15s ease, background .15s ease; }
@@ -34,7 +34,7 @@
     .chk { -webkit-appearance:none; appearance:none; width:26px; height:26px; border-radius:8px; border:2px solid #3a3a3a; background:#1b1b1b; display:inline-block; position:relative; }
     .chk:checked { background:#d11111; border-color:#8c0b0b; }
     .chk:checked::after { content:"✓"; position:absolute; top:50%; left:50%; transform:translate(-50%,-54%); font-size:16px; color:#fff; font-weight:800; }
-    .table-svg { background:#151515; border-radius:0.75rem; }
+    .table-svg { background:#151515; border-radius:0.75rem; display:block; max-width:100%; height:auto; }
     .noselect { user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color: transparent; }
     .dot { width:8px; height:8px; border-radius:9999px; background:#444; }
     .dot.on { background:#d11111; }
@@ -173,9 +173,8 @@
 
       const rackBalls = useMemo(() => buildRackPositions(variant, W, L), [variant, W, L]);
 
-      // Snap ghost-ball center to first rack ball along cue → target ray,
-      // with centers separated by one ball diameter (2 * BALL_R) and only
-      // considering balls in front of the cue (≤ 90° hit).
+      // Snap ghost ball along cue → target ray to first rack ball (≤ 90°), with centers
+      // spaced one ball diameter apart.
       function snapGhostToRackAlongCueRay(cuePos, targetPos) {
         const dx = targetPos.x - cuePos.x;
         const dy = targetPos.y - cuePos.y;
@@ -184,7 +183,7 @@
 
         const dirX = dx / rayLen;
         const dirY = dy / rayLen;
-        const R = BALL_D; // effective radius for ghost–ball contact circle
+        const R = BALL_D;
 
         let bestT = Infinity;
         let bestPoint = null;
@@ -194,15 +193,12 @@
           const b = rackBalls[i];
           const vx = b.x - cuePos.x;
           const vy = b.y - cuePos.y;
-
           const tProj = vx * dirX + vy * dirY;
 
-          // Behind cue = back-cut (> 90°) – ignore
-          if (tProj <= 0) continue;
+          if (tProj <= 0) continue; // behind cue
 
           const closestX = cuePos.x + dirX * tProj;
           const closestY = cuePos.y + dirY * tProj;
-
           const distToRay = Math.hypot(b.x - closestX, b.y - closestY);
           if (distToRay > R) continue;
 
@@ -342,7 +338,9 @@
         const [dragCue, setDragCue] = useState(false);
         const [dragGhost, setDragGhost] = useState(false);
         const pad = 8;
-        const containerW = Math.min(window.innerWidth - 16, 10000);
+
+        // Use viewport width as an upper bound, but rely on SVG's max-width:100% for containment
+        const containerW = Math.min(window.innerWidth - 32, 900);
         const maxL = 680;
         const scale = Math.min(containerW / W, maxL / L);
         const sW = W * scale, sL = L * scale;
@@ -361,13 +359,10 @@
             let tx = (p.x - pad) / scale;
             let ty = (sL - (p.y - pad)) / scale;
 
-            // Optional grid snap + clamping
             tx = clamp(snapCoord(tx, W, 8), 0, W);
             ty = clamp(snapCoord(ty, L, 8), BALL_R, L - BALL_R);
 
             const rawGhost = { x: tx, y: ty };
-
-            // Snap along cue → ghost ray to first rack ball contact
             const snapped = snapGhostToRackAlongCueRay(sourceCue, rawGhost);
 
             if (snapped && snapped.point) {
@@ -378,11 +373,9 @@
               setLastValidGhost({ x: gxNew, y: gyNew });
               setActiveRackIdx(index);
             } else if (lastValidGhost) {
-              // If ray doesn’t hit the rack anymore, keep last valid snap
               setSourceGhost(lastValidGhost);
               setActiveRackIdx(null);
             } else {
-              // Fallback: free placement if no rack ball intersected yet
               setSourceGhost(rawGhost);
               setActiveRackIdx(null);
             }
@@ -429,7 +422,13 @@
         }
 
         return (
-          <svg ref={svgRef} width={sW + pad*2} height={sL + pad*2} className="rounded-xl touch-pan-y table-svg w-full" style={{ touchAction:'none' }}>
+          <svg
+            ref={svgRef}
+            width={sW + pad*2}
+            height={sL + pad*2}
+            className="rounded-xl touch-pan-y table-svg"
+            style={{ touchAction:'none' }}
+          >
             <rect x={pad} y={pad} width={sW} height={sL} fill={BRAND.cloth} stroke={legalHit ? BRAND.accent : "#cc8400"} strokeWidth="2" />
             {Array.from({ length: 7 }, (_, i) => ((i + 1) / 8) * sW + pad).map((x, i) => (<line key={"gx"+i} x1={x} x2={x} y1={pad} y2={pad + sL} stroke="#2a2a2a" strokeDasharray="4 6" />))}
             {Array.from({ length: 7 }, (_, i) => ((i + 1) / 8) * sL + pad).map((y, i) => (<line key={"gy"+i} x1={pad} x2={pad + sW} y1={y} y2={y} stroke="#2a2a2a" strokeDasharray="4 6" />))}
@@ -626,7 +625,7 @@
       function SlotModal(){
         if (!slotModal.open) return null;
         const idx = slotModal.index;
-        const kind = slotModal.kind; // 'load' | 'save'
+               const kind = slotModal.kind; // 'load' | 'save'
         const hasExisting = !!breakSlots[idx];
         const title = kind==='load' ? `Load Slot ${idx+1}?` : (hasExisting ? `Overwrite Slot ${idx+1}?` : `Save to Slot ${idx+1}?`);
         const desc = kind==='load'
