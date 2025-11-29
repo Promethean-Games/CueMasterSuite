@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Promethean Break Speed v0.4.1 — Promethean Games (Root)</title>
+  <title>Promethean Break Speed v0.4.2 — Promethean Games (Root)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     :root {
@@ -121,7 +121,7 @@
       const [snap, setSnap] = useState(true);
       const [cue, setCue] = useState({ x: 25, y: 20 });
       const [ghost, setGhost] = useState({ x: W/2, y: (3*L/4) - BALL_D });
-      const [lastValidGhost, setLastValidGhost] = useState(null);
+      const [lastValidGhost, setLastValidGhost] = useState(null); // {x,y,index}
       const [activeRackIdx, setActiveRackIdx] = useState(null);
       const [unit, setUnit] = useState("mph");
       const [isRecording, setIsRecording] = useState(false);
@@ -173,8 +173,7 @@
 
       const rackBalls = useMemo(() => buildRackPositions(variant, W, L), [variant, W, L]);
 
-      // Snap ghost ball along cue → target ray to first rack ball (≤ 90°), with centers
-      // spaced one ball diameter apart.
+      // Find first rack ball intersected by cue->drag ray; return ghost-center point on that ray
       function snapGhostToRackAlongCueRay(cuePos, targetPos) {
         const dx = targetPos.x - cuePos.x;
         const dy = targetPos.y - cuePos.y;
@@ -183,7 +182,7 @@
 
         const dirX = dx / rayLen;
         const dirY = dy / rayLen;
-        const R = BALL_D;
+        const R = BALL_D; // distance between centers at contact for equal balls
 
         let bestT = Infinity;
         let bestPoint = null;
@@ -339,7 +338,6 @@
         const [dragGhost, setDragGhost] = useState(false);
         const pad = 8;
 
-        // Use viewport width as an upper bound, but rely on SVG's max-width:100% for containment
         const containerW = Math.min(window.innerWidth - 32, 900);
         const maxL = 680;
         const scale = Math.min(containerW / W, maxL / L);
@@ -355,7 +353,6 @@
           const move = (ev) => {
             const p = { x: ev.clientX - rect.left, y: ev.clientY - rect.top };
 
-            // Convert screen → table coordinates
             let tx = (p.x - pad) / scale;
             let ty = (sL - (p.y - pad)) / scale;
 
@@ -370,15 +367,14 @@
               const gxNew = clamp(point.x, 0, W);
               const gyNew = clamp(point.y, BALL_R, L - BALL_R);
               setSourceGhost({ x: gxNew, y: gyNew });
-              setLastValidGhost({ x: gxNew, y: gyNew });
+              setLastValidGhost({ x: gxNew, y: gyNew, index });
               setActiveRackIdx(index);
             } else if (lastValidGhost) {
-              setSourceGhost(lastValidGhost);
-              setActiveRackIdx(null);
-            } else {
-              setSourceGhost(rawGhost);
-              setActiveRackIdx(null);
+              // Gate: if no valid rack hit, fall back to last valid ghost; do NOT follow the pointer
+              setSourceGhost({ x: lastValidGhost.x, y: lastValidGhost.y });
+              setActiveRackIdx(lastValidGhost.index ?? null);
             }
+            // If no lastValidGhost yet, ignore this drag direction entirely.
           };
 
           const up = () => {
@@ -625,7 +621,7 @@
       function SlotModal(){
         if (!slotModal.open) return null;
         const idx = slotModal.index;
-               const kind = slotModal.kind; // 'load' | 'save'
+        const kind = slotModal.kind; // 'load' | 'save'
         const hasExisting = !!breakSlots[idx];
         const title = kind==='load' ? `Load Slot ${idx+1}?` : (hasExisting ? `Overwrite Slot ${idx+1}?` : `Save to Slot ${idx+1}?`);
         const desc = kind==='load'
@@ -711,7 +707,7 @@
                   <div className="space-y-3">
                     <div className="text-sm text-gray-300 font-semibold">3) Record &amp; confirm</div>
                     <p className="text-sm text-gray-400">
-                      Tap <span className="font-semibold text-white">Record</span>, break, then confirm the first contact if needed. Results save to <span className="font-semibold">Stats</span>.
+                      Tap <span className="font-semibold text:white">Record</span>, break, then confirm the first contact if needed. Results save to <span className="font-semibold">Stats</span>.
                     </p>
                     <div className="text-xs text-gray-500">Auto-timeout after 30s if no break is detected.</div>
                     <label className="flex items-center gap-2 mt-2">
