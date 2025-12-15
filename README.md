@@ -9,4 +9,4 @@ Quickly check how true your table rolls. Verify level, spot problem areas, and k
 #### CueMaster: Velocity (COMING SOON)
 Measure and track your break speed using your phone’s sensors. Benchmark your power, compare breaks over time, and dial in a consistent, controlled smash. Saved presets available for Pro users.
 
-Use code PROMETEHAN to unlock Pro status.
+Use code PROMETEHAN to unlock Pro status free for a limited time.
