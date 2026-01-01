@@ -1,6 +1,6 @@
 /**
  * CueMaster Suite - Google Apps Script for Analytics Collection
- * Version 2.5 - Direct URL parameters (no JSON encoding)
+ * Version 3.0 - Complete module data with user info
  * 
  * SETUP INSTRUCTIONS:
  * 1. Create a new Google Sheet
@@ -11,7 +11,7 @@
  * 6. Copy the Web App URL
  * 
  * SHEET CREATED:
- * - "Analytics" - Gameplay and session data with device info (24 columns A-X)
+ * - "Analytics" - Complete user and gameplay data (28 columns A-AB)
  * 
  * NOTE: Feedback is collected via Google Forms, not this script
  */
@@ -31,29 +31,33 @@ function initialSetup() {
     'Timestamp',           // A
     'User ID',             // B
     'User Email',          // C
-    'Device Type',         // D
-    'Browser',             // E
-    'Screen Size',         // F
-    'Timezone',            // G
-    'Total Sessions',      // H
-    'Total Time (min)',    // I
-    'Tempo Avg Shot (s)',  // J
-    'Tempo Total Shots',   // K
-    'Tempo Sessions',      // L
-    'Velocity Avg MPH',    // M
-    'Velocity Max MPH',    // N
-    'Velocity Breaks',     // O
-    'Vectors Shots',       // P
-    'Vectors Avg Power',   // Q
-    'Vectors Sessions',    // R
-    'TrueLevel Calibrations', // S
-    'TrueLevel Tables',    // T
-    'Luck Total Flips',    // U
-    'Luck Heads',          // V
-    'Luck Tails',          // W
-    'Luck Sessions'        // X
+    'User Name',           // D
+    'Signed In',           // E
+    'Pro Enabled',         // F
+    'Promo Code',          // G
+    'Device Type',         // H
+    'Browser',             // I
+    'Screen Size',         // J
+    'Location/Timezone',   // K
+    'Total Sessions',      // L
+    'Total Time (min)',    // M
+    'Tempo Avg Shot (s)',  // N
+    'Tempo Total Shots',   // O
+    'Tempo Sessions',      // P
+    'Last Break Speed',    // Q
+    'Velocity Avg MPH',    // R
+    'Velocity Max MPH',    // S
+    'Velocity Breaks',     // T
+    'Vectors Shots',       // U
+    'Vectors Sessions',    // V
+    'Lean Calibrations',   // W
+    'Lean Tables',         // X
+    'Coin Tosses',         // Y
+    'Coins Heads',         // Z
+    'Coins Tails',         // AA
+    'Luck Sessions'        // AB
   ]);
-  analyticsSheet.getRange(1, 1, 1, 24).setFontWeight('bold');
+  analyticsSheet.getRange(1, 1, 1, 28).setFontWeight('bold');
   analyticsSheet.setFrozenRows(1);
   
   Logger.log('Setup complete! Now Deploy > New deployment > Web app > Anyone');
@@ -64,11 +68,10 @@ function doGet(e) {
     const action = e.parameter.action || 'ping';
     
     if (action === 'ping') {
-      return jsonResponse({ status: 'ok', message: 'CueMaster Analytics v2.5' });
+      return jsonResponse({ status: 'ok', message: 'CueMaster Analytics v3.0' });
     }
     
     if (action === 'submit') {
-      // Read individual URL parameters directly (no JSON parsing needed)
       return handleAnalyticsSubmission(e.parameter);
     }
     
@@ -113,47 +116,57 @@ function handleAnalyticsSubmission(params) {
     return String(val);
   }
   
+  // Helper for boolean
+  function safeBool(val) {
+    if (val === 'true' || val === true || val === '1') return 'Yes';
+    return 'No';
+  }
+  
   // Format timestamp as human-readable date/time
   const now = new Date();
   const formattedTimestamp = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
   
-  // Read directly from URL parameters (all flat, no nesting)
+  // Read directly from URL parameters
   let timezone = safeStr(params.timezone, 'unknown');
   if (timezone === 'undefined' || timezone === 'null') timezone = 'unknown';
   
   // Build row from individual URL parameters
   const row = [
-    formattedTimestamp,                           // A: Timestamp
-    safeStr(params.userId, 'anonymous'),          // B: User ID
-    safeStr(params.userEmail, ''),                // C: User Email
-    safeStr(params.deviceType, 'unknown'),        // D: Device Type
-    safeStr(params.browser, 'unknown'),           // E: Browser
-    safeStr(params.screenSize, 'unknown'),        // F: Screen Size
-    timezone,                                     // G: Timezone
-    safeNum(params.totalSessions),                // H: Total Sessions
-    Math.round(safeNum(params.totalTimeMs) / 60000), // I: Total Time (min)
-    safeNum(params.tempoAvgShotTime),             // J: Tempo Avg Shot (s)
-    safeNum(params.tempoTotalShots),              // K: Tempo Total Shots
-    safeNum(params.tempoSessions),                // L: Tempo Sessions
-    safeNum(params.velocityAvgSpeed),             // M: Velocity Avg MPH
-    safeNum(params.velocityMaxSpeed),             // N: Velocity Max MPH
-    safeNum(params.velocityBreaks),               // O: Velocity Breaks
-    safeNum(params.vectorsShots),                 // P: Vectors Shots
-    safeNum(params.vectorsAvgPower),              // Q: Vectors Avg Power
-    safeNum(params.vectorsSessions),              // R: Vectors Sessions
-    safeNum(params.truelevelCalibrations),        // S: TrueLevel Calibrations
-    safeNum(params.truelevelTables),              // T: TrueLevel Tables
-    safeNum(params.luckFlips),                    // U: Luck Total Flips
-    safeNum(params.luckHeads),                    // V: Luck Heads
-    safeNum(params.luckTails),                    // W: Luck Tails
-    safeNum(params.luckSessions)                  // X: Luck Sessions
+    formattedTimestamp,                             // A: Timestamp
+    safeStr(params.userId, 'anonymous'),            // B: User ID
+    safeStr(params.userEmail, ''),                  // C: User Email
+    safeStr(params.userName, ''),                   // D: User Name
+    safeBool(params.isSignedIn),                    // E: Signed In
+    safeBool(params.isPro),                         // F: Pro Enabled
+    safeStr(params.promoCode, ''),                  // G: Promo Code
+    safeStr(params.deviceType, 'unknown'),          // H: Device Type
+    safeStr(params.browser, 'unknown'),             // I: Browser
+    safeStr(params.screenSize, 'unknown'),          // J: Screen Size
+    timezone,                                       // K: Location/Timezone
+    safeNum(params.totalSessions),                  // L: Total Sessions
+    Math.round(safeNum(params.totalTimeMs) / 60000), // M: Total Time (min)
+    safeNum(params.tempoAvgShotTime),               // N: Tempo Avg Shot (s)
+    safeNum(params.tempoTotalShots),                // O: Tempo Total Shots
+    safeNum(params.tempoSessions),                  // P: Tempo Sessions
+    safeNum(params.lastBreakSpeed),                 // Q: Last Break Speed
+    safeNum(params.velocityAvgSpeed),               // R: Velocity Avg MPH
+    safeNum(params.velocityMaxSpeed),               // S: Velocity Max MPH
+    safeNum(params.velocityBreaks),                 // T: Velocity Breaks
+    safeNum(params.vectorsShots),                   // U: Vectors Shots
+    safeNum(params.vectorsSessions),                // V: Vectors Sessions
+    safeNum(params.leanCalibrations),               // W: Lean Calibrations
+    safeNum(params.leanTables),                     // X: Lean Tables
+    safeNum(params.luckFlips),                      // Y: Coin Tosses
+    safeNum(params.luckHeads),                      // Z: Coins Heads
+    safeNum(params.luckTails),                      // AA: Coins Tails
+    safeNum(params.luckSessions)                    // AB: Luck Sessions
   ];
   
   sheet.appendRow(row);
   
   return jsonResponse({ 
     result: 'success', 
-    message: 'Analytics recorded v2.5',
+    message: 'Analytics recorded v3.0',
     columns: row.length
   });
 }
@@ -164,12 +177,19 @@ function getSummary() {
   
   const summary = {
     analyticsCount: 0,
+    totalUsers: 0,
+    proUsers: 0,
+    signedInUsers: 0,
     totalSessions: 0,
     totalTimeHours: 0,
+    avgShotTime: 0,
+    totalShots: 0,
     avgBreakSpeed: 0,
     maxBreakSpeed: 0,
-    totalTempoShots: 0,
-    totalVelocityBreaks: 0
+    totalBreaks: 0,
+    totalCoinTosses: 0,
+    totalHeads: 0,
+    totalTails: 0
   };
   
   if (analyticsSheet) {
@@ -177,23 +197,41 @@ function getSummary() {
     summary.analyticsCount = Math.max(0, data.length - 1);
     
     if (summary.analyticsCount > 0) {
-      let totalTime = 0, totalBreakSpeed = 0, maxBreak = 0, tempoShots = 0, velocityBreaks = 0, sessions = 0;
+      let totalTime = 0, totalBreakSpeed = 0, maxBreak = 0;
+      let tempoShots = 0, velocityBreaks = 0, sessions = 0;
+      let avgShotTimeSum = 0, coinTosses = 0, heads = 0, tails = 0;
+      let proCount = 0, signedInCount = 0;
+      const uniqueUsers = new Set();
       
       for (let i = 1; i < data.length; i++) {
-        sessions += Number(data[i][7]) || 0;        // H: Total Sessions
-        totalTime += Number(data[i][8]) || 0;       // I: Total Time (min)
-        tempoShots += Number(data[i][10]) || 0;     // K: Tempo Total Shots
-        totalBreakSpeed += Number(data[i][12]) || 0; // M: Velocity Avg MPH
-        maxBreak = Math.max(maxBreak, Number(data[i][13]) || 0); // N: Velocity Max MPH
-        velocityBreaks += Number(data[i][14]) || 0; // O: Velocity Breaks
+        uniqueUsers.add(data[i][1]);                   // B: User ID
+        if (data[i][4] === 'Yes') signedInCount++;     // E: Signed In
+        if (data[i][5] === 'Yes') proCount++;          // F: Pro Enabled
+        sessions += Number(data[i][11]) || 0;          // L: Total Sessions
+        totalTime += Number(data[i][12]) || 0;         // M: Total Time (min)
+        avgShotTimeSum += Number(data[i][13]) || 0;    // N: Tempo Avg Shot (s)
+        tempoShots += Number(data[i][14]) || 0;        // O: Tempo Total Shots
+        totalBreakSpeed += Number(data[i][17]) || 0;   // R: Velocity Avg MPH
+        maxBreak = Math.max(maxBreak, Number(data[i][18]) || 0); // S: Velocity Max MPH
+        velocityBreaks += Number(data[i][19]) || 0;    // T: Velocity Breaks
+        coinTosses += Number(data[i][24]) || 0;        // Y: Coin Tosses
+        heads += Number(data[i][25]) || 0;             // Z: Coins Heads
+        tails += Number(data[i][26]) || 0;             // AA: Coins Tails
       }
       
+      summary.totalUsers = uniqueUsers.size;
+      summary.proUsers = proCount;
+      summary.signedInUsers = signedInCount;
       summary.totalSessions = sessions;
       summary.totalTimeHours = Math.round(totalTime / 60 * 10) / 10;
+      summary.avgShotTime = summary.analyticsCount > 0 ? Math.round(avgShotTimeSum / summary.analyticsCount * 100) / 100 : 0;
+      summary.totalShots = tempoShots;
       summary.avgBreakSpeed = summary.analyticsCount > 0 ? Math.round(totalBreakSpeed / summary.analyticsCount * 10) / 10 : 0;
       summary.maxBreakSpeed = maxBreak;
-      summary.totalTempoShots = tempoShots;
-      summary.totalVelocityBreaks = velocityBreaks;
+      summary.totalBreaks = velocityBreaks;
+      summary.totalCoinTosses = coinTosses;
+      summary.totalHeads = heads;
+      summary.totalTails = tails;
     }
   }
   
